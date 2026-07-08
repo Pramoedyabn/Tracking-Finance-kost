@@ -1,0 +1,175 @@
+<!DOCTYPE html>
+<html lang="id">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Kost Tracker - Keuangan Anak Kost</title>
+
+    <link rel="manifest" href="manifest.json" />
+    <meta name="theme-color" content="#2563EB" />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;500;600;700&display=swap"
+      rel="stylesheet"
+    />
+    <link
+      rel="stylesheet"
+      href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css"
+    />
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <!-- HALAMAN LOGIN -->
+    <div id="login-page" class="page-container active">
+      <div class="card login-card">
+        <h2><i class="fa-solid fa-wallet"></i> Kost Tracker</h2>
+        <p>Login untuk mengelola budget Anda</p>
+        <form id="form-login">
+          <input type="email" id="email" placeholder="Email" required />
+          <input
+            type="password"
+            id="password"
+            placeholder="Password"
+            required
+          />
+          <button type="submit" class="btn btn-primary">
+            Login / Register
+          </button>
+        </form>
+      </div>
+    </div>
+
+    <!-- HALAMAN DASHBOARD -->
+    <div id="dashboard-page" class="page-container hidden">
+      <nav class="navbar">
+        <h2><i class="fa-solid fa-wallet"></i> Kost Tracker</h2>
+        <div class="nav-actions">
+          <button id="btn-export-pdf" class="btn btn-sm">
+            <i class="fa-solid fa-file-pdf"></i> PDF
+          </button>
+          <button id="btn-export-excel" class="btn btn-sm">
+            <i class="fa-solid fa-file-excel"></i> Excel
+          </button>
+          <button id="btn-logout" class="btn btn-sm btn-danger">
+            <i class="fa-solid fa-right-from-bracket"></i>
+          </button>
+        </div>
+      </nav>
+
+      <main class="dashboard-grid">
+        <!-- Card Budget -->
+        <section class="card budget-card">
+          <div class="budget-header">
+            <div>
+              <h3>Sisa Budget (10 Hari)</h3>
+              <h1 id="sisa-budget">Rp 0</h1>
+            </div>
+            <div class="budget-info">
+              <p>Budget Awal: <strong>Rp 500.000</strong></p>
+              <p>
+                Total Pengeluaran: <strong id="total-pengeluaran">Rp 0</strong>
+              </p>
+            </div>
+          </div>
+          <div class="progress-container">
+            <div id="budget-progress" class="progress-bar"></div>
+          </div>
+          <p id="budget-status" class="status-text">Menghitung...</p>
+          <p id="hari-tersisa" class="status-text text-right"></p>
+        </section>
+
+        <!-- Card Insight & Target -->
+        <section class="card insight-card">
+          <h3><i class="fa-solid fa-lightbulb"></i> Insight & Prediksi</h3>
+
+          <!-- Kita beri class baru: 'new-insight-grid' -->
+          <div class="new-insight-grid">
+            <div class="insight-item highlight">
+              <span>Jatah Hari Ini</span>
+              <strong id="jatah-hari-ini">Rp 50.000</strong>
+            </div>
+            <div class="insight-item">
+              <span>Kategori Terbesar</span>
+              <strong id="kategori-terbesar">-</strong>
+            </div>
+            <div class="insight-item full-width">
+              <span>Rata-rata Harian</span>
+              <strong id="rata-harian">Rp 0</strong>
+            </div>
+          </div>
+
+          <div id="target-alert" class="alert mt-15"></div>
+        </section>
+
+        <!-- Form Input -->
+        <section class="card form-card">
+          <h3>Tambah Pengeluaran</h3>
+          <form id="form-pengeluaran">
+            <input type="date" id="input-tanggal" required />
+            <select id="input-kategori" required>
+              <option value="Makan">🍚 Makan</option>
+              <option value="Minuman">☕ Minuman</option>
+              <option value="Transport">🛵 Transport</option>
+              <option value="Belanja">🛒 Belanja</option>
+              <option value="Kesehatan">💊 Kesehatan</option>
+              <option value="Hiburan">🎮 Hiburan</option>
+              <option value="Kuliah">📚 Kuliah</option>
+              <option value="Pulsa">📱 Pulsa</option>
+              <option value="Kost">🏠 Kost</option>
+              <option value="Lainnya">Lainnya</option>
+            </select>
+            <input
+              type="number"
+              id="input-nominal"
+              placeholder="Nominal (Rp)"
+              required
+            />
+            <input
+              type="text"
+              id="input-keterangan"
+              placeholder="Keterangan..."
+              required
+            />
+            <button type="submit" class="btn btn-primary w-100">
+              Tambah Data
+            </button>
+          </form>
+        </section>
+
+        <!-- Laporan Grafik -->
+        <section class="card chart-card">
+          <h3>Laporan Pengeluaran</h3>
+          <div class="chart-container">
+            <canvas id="pieChart"></canvas>
+          </div>
+        </section>
+
+        <!-- List Pengeluaran -->
+        <section class="card list-card" style="grid-column: 1 / -1">
+          <div class="list-header">
+            <h3>Riwayat Transaksi</h3>
+            <div class="filters">
+              <select id="filter-waktu">
+                <option value="semua">Semua</option>
+                <option value="hari-ini">Hari Ini</option>
+                <option value="periode-ini">Periode Ini (10 Hari)</option>
+              </select>
+              <input
+                type="text"
+                id="search-input"
+                placeholder="Cari keterangan..."
+              />
+            </div>
+          </div>
+          <div id="list-pengeluaran" class="transaction-list"></div>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="firebase.js"></script>
+    <script type="module" src="script.js"></script>
+  </body>
+</html>

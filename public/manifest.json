@@ -1,0 +1,16 @@
+{
+  "name": "Kost Tracker",
+  "short_name": "KostTracker",
+  "description": "Aplikasi tracking keuangan anak kost",
+  "start_url": "/index.html",
+  "display": "standalone",
+  "background_color": "#F3F4F6",
+  "theme_color": "#2563EB",
+  "icons": [
+    {
+      "src": "assets/icon.png",
+      "sizes": "512x512",
+      "type": "image/png"
+    }
+  ]
+}
