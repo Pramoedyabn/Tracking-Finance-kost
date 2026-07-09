@@ -28,6 +28,37 @@ let currentUser = null;
 let expenses = [];
 let chartInstance = null;
 const BUDGET_AWAL = 500000;
+let currentPeriod = { start: null, end: null }; // diupdate tiap renderDashboard()
+
+// ================= KONFIGURASI PERIODE BUDGET =================
+// Tanggal masuk kost = hari pertama siklus budget dimulai.
+// Ganti tanggal ini kalau suatu saat pindah kost / mulai siklus baru.
+const KOST_START_DATE = new Date(2026, 6, 6); // 6 Juli 2026 (bulan di JS mulai dari 0, jadi 6 = Juli)
+KOST_START_DATE.setHours(0, 0, 0, 0);
+const CYCLE_LENGTH = 10; // budget di-reset tiap 10 hari terhitung dari KOST_START_DATE
+
+// Menghitung info periode (hari ke berapa, sisa hari, tanggal awal & akhir
+// periode yang sedang berjalan) berdasarkan hari ini.
+function getPeriodInfo(today) {
+  const t = new Date(today);
+  t.setHours(0, 0, 0, 0);
+
+  const diffDays = Math.floor((t - KOST_START_DATE) / 86400000); // 0 = hari pertama masuk kost
+  const cycleIndex = Math.floor(diffDays / CYCLE_LENGTH);
+  const hariKe = diffDays - cycleIndex * CYCLE_LENGTH; // 0..9 dalam siklus berjalan
+
+  const periodStart = new Date(KOST_START_DATE);
+  periodStart.setDate(KOST_START_DATE.getDate() + cycleIndex * CYCLE_LENGTH);
+
+  const periodEnd = new Date(periodStart);
+  periodEnd.setDate(periodStart.getDate() + CYCLE_LENGTH - 1);
+  periodEnd.setHours(23, 59, 59, 999);
+
+  const hariBerjalan = hariKe + 1; // jumlah hari yang sudah dijalani (termasuk hari ini), dipakai buat hitung rata-rata
+  const sisaHari = CYCLE_LENGTH - hariBerjalan;
+
+  return { periodStart, periodEnd, hariKe, hariBerjalan, sisaHari };
+}
 
 // Format Rupiah
 const formatRp = (angka) => {
@@ -138,35 +169,29 @@ window.hapusData = async (id) => {
   }
 };
 
+document
+  .getElementById("filter-waktu")
+  .addEventListener("change", () => renderList(getFilteredExpenses()));
+
+document
+  .getElementById("search-input")
+  .addEventListener("input", () => renderList(getFilteredExpenses()));
+
 // ================= RENDER UI & CALCULATIONS =================
 function renderDashboard() {
-  // 1. Logika 10 Hari bawaan Anda
   const today = new Date();
-  const dateNum = today.getDate();
-  let startDay, endDay, hariBerjalan, sisaHari;
 
-  if (dateNum <= 10) {
-    startDay = 1;
-    endDay = 10;
-    hariBerjalan = dateNum;
-    sisaHari = 10 - dateNum;
-  } else if (dateNum <= 20) {
-    startDay = 11;
-    endDay = 20;
-    hariBerjalan = dateNum - 10;
-    sisaHari = 20 - dateNum;
-  } else {
-    startDay = 21;
-    endDay = new Date(today.getFullYear(), today.getMonth() + 1, 0).getDate();
-    hariBerjalan = dateNum - 20;
-    sisaHari = endDay - dateNum;
-  }
+  // 1. Info periode berdasarkan tanggal masuk kost (bukan kalender bulan lagi)
+  const { periodStart, periodEnd, hariKe, hariBerjalan, sisaHari } =
+    getPeriodInfo(today);
 
-  // Filter transaksi untuk periode saat ini
+  // Simpan periode saat ini biar bisa dipakai fungsi filter riwayat transaksi
+  currentPeriod = { start: periodStart, end: periodEnd };
+
+  // Filter transaksi untuk periode saat ini (berdasarkan rentang tanggal asli, bukan tanggal-di-bulan)
   const currentPeriodExpenses = expenses.filter((ex) => {
-    const d = new Date(ex.tanggal).getDate();
-    const m = new Date(ex.tanggal).getMonth();
-    return d >= startDay && d <= endDay && m === today.getMonth();
+    const d = new Date(ex.tanggal);
+    return d >= periodStart && d <= periodEnd;
   });
 
   // ================= HITUNG PENGELUARAN KHUSUS HARI INI =================
@@ -202,6 +227,13 @@ function renderDashboard() {
     "hari-tersisa"
   ).innerText = `${sisaHari} hari tersisa dalam periode ini`;
   document.getElementById("rata-harian").innerText = formatRp(rataHarian);
+
+  // ================= UPDATE UI "HARI KE-X DARI TOTAL" =================
+  // hariKe dihitung dari tanggal masuk kost (KOST_START_DATE), bukan tanggal kalender.
+  document.getElementById(
+    "hari-ke"
+  ).innerText = `Hari ke-${hariKe} dari ${CYCLE_LENGTH}`;
+  // =======================================================================
 
   // ================= UPDATE UI JATAH HARI INI =================
   const jatahElem = document.getElementById("jatah-hari-ini");
@@ -244,8 +276,48 @@ function renderDashboard() {
     alertBox.innerHTML = "✅ Budget masih aman.";
   }
 
-  renderList(expenses);
+  renderList(getFilteredExpenses());
   renderChart(currentPeriodExpenses);
+}
+
+// ================= FILTER RIWAYAT TRANSAKSI =================
+function getFilteredExpenses() {
+  const filterWaktu = document.getElementById("filter-waktu").value;
+  const searchText = document
+    .getElementById("search-input")
+    .value.trim()
+    .toLowerCase();
+
+  const today = new Date();
+  const tahun = today.getFullYear();
+  const bulan = String(today.getMonth() + 1).padStart(2, "0");
+  const tanggal = String(today.getDate()).padStart(2, "0");
+  const hariIniString = `${tahun}-${bulan}-${tanggal}`;
+
+  let filtered = expenses;
+
+  if (filterWaktu === "hari-ini") {
+    filtered = filtered.filter((ex) => ex.tanggal === hariIniString);
+  } else if (filterWaktu === "periode-ini") {
+    filtered = filtered.filter((ex) => {
+      const d = new Date(ex.tanggal);
+      return (
+        currentPeriod.start &&
+        currentPeriod.end &&
+        d >= currentPeriod.start &&
+        d <= currentPeriod.end
+      );
+    });
+  }
+  // "semua" -> tidak difilter berdasarkan waktu
+
+  if (searchText) {
+    filtered = filtered.filter((ex) =>
+      ex.keterangan.toLowerCase().includes(searchText)
+    );
+  }
+
+  return filtered;
 }
 
 function renderList(data) {
